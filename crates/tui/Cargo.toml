@@ -1,0 +1,18 @@
+[package]
+name = "tui"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+prgparser = { version = "0.0.0", path = "../prgparser" }
+mcd = { version = "0.0.0", path = "../mcd" }
+mcd-traits = { version = "0.0.0", path = "../mcd-traits" }
+crossterm = "0.27.0"
+ratatui = { version = "0.29.0", features = ["all-widgets"] }
+tui-textarea = { version = "0.4.0", features = ["ratatui", "crossterm"] }
+itertools = "0.12"
+clap = { version = "4.4.18", features = ["derive"] }
+
+[dev-dependencies]
+rstest = "0.26.1"

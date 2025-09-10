@@ -1,0 +1,9 @@
+[package]
+name = "mcd"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+prgparser = { version = "0.0.0", path = "../prgparser" }
+mcd-traits = { version = "0.0.0", path = "../mcd-traits" }

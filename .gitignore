@@ -1,0 +1,10 @@
+target
+debug
+
+*.PRIVATE
+.idea/
+.vscode/
+# these exist for testing
+*.c
+heaptrack*
+local*

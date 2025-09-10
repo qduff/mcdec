@@ -1,0 +1,9 @@
+[package]
+name = "prgparser"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+num_enum = "0.7.3"
+mcd-traits = { version = "0.0.0", path = "../mcd-traits" } 

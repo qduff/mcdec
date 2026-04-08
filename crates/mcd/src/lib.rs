@@ -141,13 +141,20 @@ impl Function {
         }
     }
 
-    fn ensure_disassembly_analyzed(&mut self) {
+    pub fn ensure_disassembly_analyzed(&mut self) {
         if let OptionalIL::NotAnalyzed = &self.disassembly {
             let result = DisassemblyFunction::disassemble(&self.container);
             self.disassembly = match result {
                 Ok(dis) => OptionalIL::Some(dis),
                 Err(e) => OptionalIL::Failure(e),
             };
+        }
+    }
+
+    pub fn get_disassembly(&self) -> Option<&DisassemblyFunction> {
+        match &self.disassembly {
+            OptionalIL::Some(dis) => Some(dis),
+            _ => None,
         }
     }
 
@@ -163,7 +170,7 @@ impl Function {
         }
     }
 
-    fn ensure_ssa_analyzed(&mut self) {
+    pub fn ensure_ssa_analyzed(&mut self) {
         self.ensure_disassembly_analyzed();
         if let OptionalIL::Failure(_) = self.disassembly {
             return;
@@ -176,6 +183,13 @@ impl Function {
                 Ok(dec) => OptionalIL::Some(dec),
                 Err(msg) => OptionalIL::Failure(msg),
             };
+        }
+    }
+
+    pub fn get_ssa(&self) -> Option<&SSAFunction> {
+        match &self.ssa {
+            OptionalIL::Some(ssa) => Some(ssa),
+            _ => None,
         }
     }
 
@@ -198,7 +212,6 @@ impl Function {
         }
     }
 }
-
 
 fn class_recursive_function_find(
     data_section: &DataData,
@@ -226,7 +239,7 @@ fn class_recursive_function_find_inner(
     data_section: &DataData,
     code_section: &prgparser::sections::code::CodeData,
 ) {
-    if let DataEntryTypes::Class(class) = data_section.get(&id).unwrap() {
+    if let DataEntryTypes::Class(class) = data_section.get(&id).expect("ID not present!") {
         let extends = &class.extends_offset;
 
         for field in &class.fields {
@@ -279,7 +292,7 @@ fn generate_functions(
 
     let code_end_idx = code_section.len();
 
-    let mut iter = stubs.into_iter().peekable(); // Create a peekable iterator
+    let mut iter = stubs.into_iter().peekable();
 
     while let Some((function_start, (arg_count, symbols))) = iter.next() {
         let start_idx = code_section.addr_to_idx(function_start).unwrap();
@@ -369,7 +382,7 @@ impl SymbolDB {
                 source: SymbolSource::ApiDb,
             });
 
-            let mut chained = user_iter.chain(section_iter).chain(api_iter);
+        let mut chained = user_iter.chain(section_iter).chain(api_iter);
         let mut seen_keys = HashSet::new();
 
         std::iter::from_fn(move || {
@@ -381,6 +394,7 @@ impl SymbolDB {
             None
         })
     }
+
     #[cfg(target_os = "linux")]
     fn locate_symbol_db() -> Option<PathBuf> {
         let home_dir = env::var("HOME").ok()?;
@@ -446,12 +460,13 @@ impl SymbolDB {
 
 pub struct MCD {
     // raw_sections: ProgramSections,
+    pub data: DataData,
     pub symbols: SymbolDB,
     pub functions: Vec<Function>,
 }
 
 impl MCD {
-    pub fn new(sections: ProgramSections) -> MCD {
+    pub fn new(mut sections: ProgramSections) -> MCD {
         let stubs = class_recursive_function_find(
             sections.get_data_section().unwrap(),
             sections.get_code_section().unwrap(),
@@ -462,17 +477,19 @@ impl MCD {
             // raw_sections: sections,
             functions,
             symbols: SymbolDB::new(sections.take_symbols_section()),
+            data: sections.take_data_section().expect("No data section!"),
         }
     }
 }
 
-impl AddressResolver for SymbolDB{
+
+impl AddressResolver for MCD {
     fn resolve_symbol(&self, addr: u32) -> Option<&str> {
-        self.get_symbol_name(addr)
+        self.symbols.get_symbol_name(addr)
     }
 
-    // todo spin out of here!
     fn resolve_data(&self, addr: u32) -> Option<&str> {
+        // really needs to be a cow type
         None
     }
 }

@@ -73,63 +73,34 @@ macro_rules! define_opcodes_and_parser {
 define_opcodes_and_parser! {
     #[repr(i32)]
     #[derive( PartialEq, Clone, Copy, Debug)]
+    /// Refer to my site for the opcode reference. At some point I will add them here.
     pub enum Opcode {
-        /// No Opcode
         NOP = 0,
-        /// Reserve n local variables
         INCSP(i32) = 1,
-        /// Pop top of stack and discard
         POPV = 2,
-        /// Add top elements of stack
         ADD = 3,
-        /// Subtract top elements of stack
         SUB = 4,
-        /// Multiply top elements of stack
         MUL = 5,
-        /// Divide top elements of stack
         DIV = 6,
-        /// Bitwise AND top elements of stack
         AND = 7,
-        /// Bitwise OR top elements of stack
         OR = 8,
-        /// Bitwise modulo top elements of stack
         MOD = 9,
-        /// Shift left
         SHL = 10,
-        /// Arithmetic shift right
         SHR = 11,
-        /// Bitwise XOR top elements of stack
         XOR = 12,
-        /// Pop stack, deref symbol from addr, and store
-        /// [..., s] -> [..., *s]
-        /// retrieve an attribute from a module???
         GETV = 13,
-        /// Store top of stack into symbol of second to top
-        /// [..., s, v] -> *s = v -> [...]
         PUTV = 14,
-        /// Invoke function with n args. The n arguments are passed on the stack, with the function itself below.
         INVOKEM(u8) = 15,
-        ///  index second to top of stack with top of stack, and store on stack
         AGETV = 16,
-        /// store top of stack in array third to top indexed by second to top (top of stack returns to array - consumes two items)
         APUTV = 17,
-        /// Push local n onto stack
         LGETV(u8) = 18,
-        /// Pop stack and store in local n
         LPUTV(u8) = 19,
-        /// New array of length given by item on top of stack
         NEWA = 20,
-        /// Initialize new class given symbol on top of stack
         NEWC = 21,
-        /// Return from function
         RETURN = 22,
-        /// Return from JSR call (used for try statement finally)
         RET = 23,
-        /// New string // TODO SymbolAddress typwe? or DataAddress???
         NEWS(DataAddress) = 24,
-        /// Jump to speficied address
         GOTO(CodeAddress) = 25,
-        /// Compare equality of top two variables on stack
         EQ = 26,
         LT = 27,
         LTE = 28,
@@ -137,57 +108,36 @@ define_opcodes_and_parser! {
         GTE = 30,
         NE = 31,
         ISNULL = 32,
-        /// 'instanceof' infix operation
         ISA = 33,
-        /// 'has' infix operation
         CANHAZPLZ = 34,
-        /// Jump to codeaddress that lies within current function - used for try statement finally - see RET
         JSR(CodeAddress) = 35,
-        /// Not sure but is implemented as NOP (legacy??)
         TS = 36,
-        /// Push int
         IPUSH(i32) = 37,
-        /// Push float
         FPUSH(f32) = 38,
-        /// Push symbol
         SPUSH(SymbolAddress) = 39,
-        /// If value on top of stack is true (!0?) jump to specified address
         BT(CodeAddress) = 40,
-        /// If value on top of stack is false (0?) jump to specified address
         BF(CodeAddress) = 41,
-        /// Push Method
         FRPUSH = 42,
         BPUSH(i32) = 43,
         NPUSH = 44,
-        /// Complement?
         INV = 45,
         DUP(u8) = 46,
         NEWD = 47,
-        /// Get module based on symbol id at top of stack
         GETM = 48,
         LPUSH(u64) = 49,
         DPUSH(f64) = 50,
         THROW = 51,
         CPUSH(char) = 52,
-        /// Number of arguments, including context which is always passed
         ARGC(usize) = 53,
         NEWBA = 54,
         IPUSHZ = 55,
-        /// Push immediate 1 byte
         IPUSH1(i8) = 56,
-        /// Push immediate 2 bytes
         IPUSH2(i16) = 57,
-        /// Push immediate 3 bytes
         IPUSH3(i32) = 58, // actually i24!
-        /// Push a float 0 onto stack
         FPUSHZ = 59,
-        /// Push a long 0 onto stack (ref to heap alloced)
         LPUSHZ = 60,
-        /// Push a double 0 onto stack (ref to heap alloced)
         DPUSHZ = 61,
-        /// Push a boolean true onto the stack
         BTPUSH = 62,
-        /// Push a boolean false onto the stack
         BFPUSH = 63,
         APUSH(DataAddress) = 64,
         BAPUSH(DataAddress) = 65,
@@ -197,7 +147,6 @@ define_opcodes_and_parser! {
         GETMV(SymbolAddress, SymbolAddress) = 69,
         GETLOCALV(u8, SymbolAddress) = 70,
         GETSV(SymbolAddress) = 71,
-        /// (V2) Invoke with zero args. Essentially a combination of FRPUSH, INVOKE
         INVOKEMZ = 72,
         APUTVDUP = 73,
         ARGCINCSP(usize, u8) = 74,
@@ -221,20 +170,26 @@ pub fn get_args<R: Read>(reader: &mut BinaryReader<R>, opcode: Opcode) -> io::Re
         Opcode::INCSP(_) => Opcode::INCSP(reader.read_u8()? as i32),
         Opcode::BPUSH(_) => Opcode::BPUSH(reader.read_u8()? as i32),
         Opcode::DUP(_) => Opcode::DUP(reader.read_u8()?),
-
-        Opcode::BT(_) => Opcode::BT(CodeAddress::new_from_local(
-            (reader.read_i16()? as i32 + reader.get_local_position() as i32) as u32,
-        )), // nb selection of types, should work in all cases
+        Opcode::BT(_) => {
+            let offset = reader.read_i16()? as i64;
+            let target = reader.get_local_position().wrapping_add_signed(offset) as u32;
+            Opcode::BT(CodeAddress::new_from_local(target))
+        }
         Opcode::BF(_) => {
-            Opcode::BF(CodeAddress::new_from_local((reader.read_i16()? as i32 + reader.get_local_position() as i32) as u32))
+            let offset = reader.read_i16()? as i64;
+            let target = reader.get_local_position().wrapping_add_signed(offset) as u32;
+            Opcode::BF(CodeAddress::new_from_local(target))
         }
-        Opcode::GOTO(_) => Opcode::GOTO(CodeAddress::new_from_local(
-            (reader.read_i16()? as i32 + reader.get_local_position() as i32) as u32,
-        )),
+        Opcode::GOTO(_) => {
+            let offset = reader.read_i16()? as i64;
+            let target = reader.get_local_position().wrapping_add_signed(offset) as u32;
+            Opcode::GOTO(CodeAddress::new_from_local(target))
+        }
         Opcode::JSR(_) => {
-            Opcode::JSR(CodeAddress::new_from_local((reader.read_i16()? as i32 + reader.get_local_position() as i32) as u32))
+            let offset = reader.read_i16()? as i64;
+            let target = reader.get_local_position().wrapping_add_signed(offset) as u32;
+            Opcode::JSR(CodeAddress::new_from_local(target))
         }
-
         Opcode::NEWS(_) => Opcode::NEWS(DataAddress::new_from_local(reader.read_u32()?)),
 
         // V2 Opcodes i think

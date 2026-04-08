@@ -31,7 +31,7 @@ where
     F: TFunction<B, I>,
     B: TBlock<I>,
     I: TInstruction,
-    R: AddressResolver + 'a,
+    R: AddressResolver,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let function = self.function;

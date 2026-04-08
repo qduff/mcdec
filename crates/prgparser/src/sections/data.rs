@@ -96,14 +96,14 @@ fn parse_field<R: Read>(reader: &mut BinaryReader<R>, varsized: bool) -> io::Res
         5 => FieldValue::Array(DataAddress::new_from_global(raw_value).unwrap()), // TODO VERIFY!!
         6 => FieldValue::Method(
             CodeAddress::new_from_global(raw_value)
-                .unwrap_or_else(|| panic!("RAWVAL: {:#x}", raw_value)),
+                .unwrap_or_else(|| panic!("RAWVAL: {:#x}", raw_value)), // TODO could be in ExtendedCodeAddress!
         ),
 
         7 => FieldValue::Class({
             DataAddress::new_from_global(raw_value)
                 .map(ClassTypes::Data)
                 .or_else(|| ApiNativeAddress::new_from_global(raw_value).map(ClassTypes::ApiNative))
-                .expect("Fatal: Neither x() nor y() could produce a value.")
+                .expect("Could not construct ClassTypes (neither Data/ApiNative)")
         }), // can be apinative too!!!
         // 7 =>  panic!(),
         9 => FieldValue::Boolean(raw_value != 0),

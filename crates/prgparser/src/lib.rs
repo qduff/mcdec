@@ -1,4 +1,3 @@
-// #![feature(concat_idents)]
 use std::{
     fmt::Debug,
     io::{self, Read},
@@ -97,14 +96,21 @@ macro_rules! implement_section_accessors {
                 })
             }
 
-            pub fn $take_fn(self) -> Option<$inner_type> {
-                self.0.into_iter().find_map(|section| {
+            pub fn $take_fn(&mut self) -> Option<$inner_type> {
+                let index = self.0.iter().position(|section| {
+                    matches!(section.kind, SectionKind::$variant(_))
+                });
+
+                if let Some(i) = index {
+                    let section = self.0.remove(i);
                     if let SectionKind::$variant(data) = section.kind {
                         Some(data)
                     } else {
-                        None
+                        unreachable!()
                     }
-                })
+                } else {
+                    None
+                }
             }
         )*
     };

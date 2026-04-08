@@ -25,7 +25,6 @@ pub enum Variable {
     Local { addr: u8, unique: u32 },
     Stack { addr: u32, unique: u32 },
     Internal { unique: u32 },
-    // Phi(Box<Variable>, Box<Variable>),
 }
 
 impl Debug for Variable {
@@ -39,7 +38,7 @@ impl Debug for Variable {
 }
 
 struct FunctionVariableContext {
-    stack_unique: HashMap<u32, u32>, // function global sp to unique id (block local)
+    stack_unique: HashMap<u32, u32>, 
     local_unique: HashMap<u8, u32>,
     internal_unique: Option<u32>,
 }
@@ -70,6 +69,7 @@ impl BlockVariableContext<'_> {
     fn get_sp(&self) -> u32 {
         self.cur_sp
     }
+    
     fn set_internal(&mut self) -> Variable {
         if let Some(internal_unique) = self.ctx.internal_unique.as_mut() {
             *internal_unique += 1;
@@ -100,12 +100,9 @@ impl BlockVariableContext<'_> {
 
         Variable::Local { addr: idx, unique }
     }
-
-    // TODO set locals from args
     
     fn get_local(&mut self, idx: u8) -> Variable {
         let unique = *self.ctx.local_unique.entry(idx).or_insert(0);
-
         Variable::Local { addr: idx, unique }
     }
 
@@ -160,39 +157,20 @@ impl Debug for OP {
         match self {
             OP::Move { src, dest } => f.write_fmt(format_args!("{:?} = {:?}", dest, src)),
             OP::MoveImm { src, dest } => f.write_fmt(format_args!("{:?} = {:?}", dest, src)),
-            OP::BinaryOperation {
-                op,
-                src1,
-                src2,
-                dest,
-            } => f.write_fmt(format_args!("{dest:?} = {src1:?} {op:?} {src2:?}")),
-            OP::UnaryOperation { op, src, dest } => {
-                f.write_fmt(format_args!("{dest:?} = {op:?} {src:?}"))
-            }
-            OP::Getv { base, symbol, dest } => {
-                f.write_fmt(format_args!("{dest:?} = {base:?}.{symbol:?}"))
-            }
-            OP::Putv { src, base, symbol } => {
-                f.write_fmt(format_args!("{base:?}.{symbol:?} = {src:?}"))
-            }
+            OP::BinaryOperation { op, src1, src2, dest } => f.write_fmt(format_args!("{dest:?} = {src1:?} {op:?} {src2:?}")),
+            OP::UnaryOperation { op, src, dest } => f.write_fmt(format_args!("{dest:?} = {op:?} {src:?}")),
+            OP::Getv { base, symbol, dest } => f.write_fmt(format_args!("{dest:?} = {base:?}.{symbol:?}")),
+            OP::Putv { src, base, symbol } => f.write_fmt(format_args!("{base:?}.{symbol:?} = {src:?}")),
             OP::Getm { symbol, dest } => f.write_fmt(format_args!("{dest:?} = getm({symbol:?})")),
-            OP::Call {
-                function,
-                arguments,
-                dest,
-            } => {
+            OP::Call { function, arguments, dest } => {
                 f.write_fmt(format_args!("{dest:?} = {function:?}("))?;
                 for arg in arguments {
                     f.write_fmt(format_args!("{arg:?}, "))?;
                 }
                 f.write_str(")")
             }
-            OP::Aputv { src, idx, value } => {
-                f.write_fmt(format_args!("{src:?}[{idx:?}] =  {value:?}"))
-            }
-            OP::Agetv { src, idx, dest } => {
-                f.write_fmt(format_args!("{dest:?} = {src:?}[{idx:?}]"))
-            }
+            OP::Aputv { src, idx, value } => f.write_fmt(format_args!("{src:?}[{idx:?}] =  {value:?}")),
+            OP::Agetv { src, idx, dest } => f.write_fmt(format_args!("{dest:?} = {src:?}[{idx:?}]")),
         }
     }
 }
@@ -201,7 +179,6 @@ enum UnaryOperator {
     IsNull,
     IsNotNull,
     Inv,
-
     NewDictionary,
     NewClass,
     NewArray,
@@ -223,33 +200,14 @@ impl Debug for UnaryOperator {
 }
 
 enum BinaryOperator {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    And,
-    Or,
-    Mod,
-    Shl,
-    Shr,
-    Xor,
-
-    // eqality
-    Eq,
-    Lt,
-    Lte,
-    Gt,
-    Gte,
-    Ne,
-
-    Isa,
-    Has,
+    Add, Sub, Mul, Div, And, Or, Mod, Shl, Shr, Xor,
+    Eq, Lt, Lte, Gt, Gte, Ne,
+    Isa, Has,
 }
 
 impl Debug for BinaryOperator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            // arithmetics
             BinaryOperator::Add => f.write_str("+"),
             BinaryOperator::Sub => f.write_str("-"),
             BinaryOperator::Mul => f.write_str("*"),
@@ -260,75 +218,29 @@ impl Debug for BinaryOperator {
             BinaryOperator::Shl => f.write_str("<<"),
             BinaryOperator::Shr => f.write_str(">>"),
             BinaryOperator::Xor => f.write_str("^"),
-
-            //eqalities
             BinaryOperator::Eq => f.write_str("=="),
             BinaryOperator::Lt => f.write_str("<"),
             BinaryOperator::Lte => f.write_str("<="),
             BinaryOperator::Gt => f.write_str(">"),
             BinaryOperator::Gte => f.write_str(">="),
             BinaryOperator::Ne => f.write_str("!="),
-
             BinaryOperator::Isa => f.write_str("isa"),
             BinaryOperator::Has => f.write_str("has"),
         }
     }
 }
 
-/// NOTE: Ordered SOURCE->DEST
 pub enum OP {
-    /// Move variable into dest from source
-    Move {
-        src: Variable,
-        dest: Variable,
-    },
-    /// Move into dest from immediate
-    MoveImm {
-        src: ImmediateValue,
-        dest: Variable,
-    },
-    BinaryOperation {
-        op: BinaryOperator,
-        src1: Variable,
-        src2: Variable,
-        dest: Variable,
-    },
-
-    UnaryOperation {
-        op: UnaryOperator,
-        src: Variable,
-        dest: Variable,
-    },
-    Getv {
-        base: Variable,
-        symbol: Variable,
-        dest: Variable,
-    },
-    Getm {
-        symbol: Variable,
-        dest: Variable,
-    },
-    Aputv {
-        src: Variable,
-        idx: Variable,
-        value: Variable,
-    },
-    Agetv {
-        src: Variable,
-        idx: Variable,
-        dest: Variable,
-    },
-
-    Putv {
-        src: Variable,
-        base: Variable,
-        symbol: Variable,
-    },
-    Call {
-        function: Variable,
-        arguments: Vec<Variable>,
-        dest: Variable,
-    },
+    Move { src: Variable, dest: Variable },
+    MoveImm { src: ImmediateValue, dest: Variable },
+    BinaryOperation { op: BinaryOperator, src1: Variable, src2: Variable, dest: Variable },
+    UnaryOperation { op: UnaryOperator, src: Variable, dest: Variable },
+    Getv { base: Variable, symbol: Variable, dest: Variable },
+    Getm { symbol: Variable, dest: Variable },
+    Aputv { src: Variable, idx: Variable, value: Variable },
+    Agetv { src: Variable, idx: Variable, dest: Variable },
+    Putv { src: Variable, base: Variable, symbol: Variable },
+    Call { function: Variable, arguments: Vec<Variable>, dest: Variable },
 }
 
 impl OP {
@@ -389,12 +301,8 @@ impl OP {
         }]
     }
 
-    fn getm_primitive(ctx: &mut BlockVariableContext<'_>) -> [Self; 2] {
+    fn getm_primitive(ctx: &mut BlockVariableContext<'_>) -> [Self; 1] {
         [
-            OP::Move {
-                src: ctx.get_stack_variable_top_offset(1),
-                dest: ctx.set_internal(),
-            },
             OP::Getm {
                 symbol: ctx.pop_stack_variable_top(),
                 dest: ctx.push_stack_variable(),
@@ -427,37 +335,26 @@ pub struct SSABlock {
 }
 
  enum SSATerminator {
-    Jump {
-        target: usize,
-    },
+    Jump { target: usize },
     BranchTrue {
         test: Variable,
-        // always stack var stack_end
-        target_true: usize,  // Label to jump to if condition is true
-        target_false: usize, // Label to jump to if condition is false (fallthrough)
+        target_true: usize,
+        target_false: usize,
     },
-    Return {
-        var: Variable,
-    },
+    Return { var: Variable },
 }
 
 impl Debug for SSATerminator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SSATerminator::Jump { target } => f.write_fmt(format_args!("JUMP {target}")),
-            SSATerminator::BranchTrue {
-                test,
-                target_true,
-                target_false,
-            } => f.write_fmt(format_args!(
-                "JUMP {test:?} ? {target_true} : {target_false}"
-            )),
+            SSATerminator::BranchTrue { test, target_true, target_false } => 
+                f.write_fmt(format_args!("JUMP {test:?} ? {target_true} : {target_false}")),
             SSATerminator::Return { var } => f.write_fmt(format_args!("RETURN {var:?}")),
         }
     }
 }
 
-/// This function takes an opcode, and returns `OP`s based on the current context.
 fn get_operation(opcode: &Opcode, ctx: &mut BlockVariableContext, ops: &mut Vec<OP>) {
     match opcode {
         Opcode::LGETV(idx) => ops.extend(OP::lgetv_primitive(ctx, *idx)),
@@ -511,7 +408,6 @@ fn get_operation(opcode: &Opcode, ctx: &mut BlockVariableContext, ops: &mut Vec<
             src: ImmediateValue::Double(0f64),
             dest: ctx.push_stack_variable(),
         }),
-        // TODO is lpush signed or unsigned??
         Opcode::LPUSH(imm) => ops.push(OP::MoveImm {
             src: ImmediateValue::Long(*imm),
             dest: ctx.push_stack_variable(),
@@ -533,12 +429,11 @@ fn get_operation(opcode: &Opcode, ctx: &mut BlockVariableContext, ops: &mut Vec<
             src: ImmediateValue::Float(0f32),
             dest: ctx.push_stack_variable(),
         }),
-        // todo new imm primitive
         Opcode::BTPUSH => ops.push(OP::MoveImm {
             src: ImmediateValue::Boolean(true),
             dest: ctx.push_stack_variable(),
         }),
-      Opcode::BFPUSH => ops.push(OP::MoveImm {
+        Opcode::BFPUSH => ops.push(OP::MoveImm {
             src: ImmediateValue::Boolean(false),
             dest: ctx.push_stack_variable(),
         }),
@@ -611,7 +506,6 @@ fn get_operation(opcode: &Opcode, ctx: &mut BlockVariableContext, ops: &mut Vec<
             ctx.pop_stack_variable_top();
         }
 
-        // compound
         Opcode::GETSELFV(symbol) => {
             ops.extend(OP::lgetv_primitive(ctx, 0));
             ops.extend(OP::spush_primitive(ctx, *symbol));
@@ -636,7 +530,7 @@ fn get_operation(opcode: &Opcode, ctx: &mut BlockVariableContext, ops: &mut Vec<
         }
         Opcode::APUTVDUP => {
             ops.extend(OP::aputv_primitive(ctx));
-            ops.extend(OP::dup_primitive(ctx, 1)); // todo check 1
+            ops.extend(OP::dup_primitive(ctx, 1));
         }
 
         Opcode::ARGC(_) | Opcode::INCSP(_) | Opcode::ARGCINCSP(_, _) => {}
@@ -650,38 +544,27 @@ pub enum SSAError {
     UnbalancedStack,
 }
 
-
-pub fn perform_ssa_function(disassembly_function: &DisassemblyFunction) -> Result<SSAFunction, SSAError> {
-    // Note that these blocks are not necessarily in the same order as blocks in lower ILs
-
-    let mut ssa_blocks: BTreeMap<usize, SSABlock> = BTreeMap::new(); // BLOCK ID, depth
-
-    let mut search_deque: VecDeque<(usize, u32)> = VecDeque::new(); // DISASSEMBLY BLOCK ID, depth
-
-    let mut mapper: HashMap<usize, usize> = HashMap::new() ; // mapping of DISAS IDX to DECOMP IDX 
-
+pub fn perform_ssa_function(
+    disassembly_function: &DisassemblyFunction,
+) -> Result<SSAFunction, SSAError> {
+    let mut ssa_blocks: BTreeMap<usize, SSABlock> = BTreeMap::new();
+    let mut search_deque: VecDeque<(usize, u32)> = VecDeque::new();
     search_deque.push_back((0, 0));
-
     let mut function_ctx = FunctionVariableContext::new_ctx();
 
     while let Some((disas_block_idx, start_depth)) = search_deque.pop_front() {
-        eprintln!("in {disas_block_idx:}");
         if let Some(blockid) = ssa_blocks.get(&disas_block_idx) {
             if blockid.start_depth != start_depth {
-                return Err(SSAError::UnbalancedStack)
+                return Err(SSAError::UnbalancedStack);
             }
             continue;
         }
 
         let disas_block = &disassembly_function.blocks[disas_block_idx];
-
         let mut block_ctx = function_ctx.new_block_context(start_depth);
-
-        // not super clean, but more efficient than collecting many vecs into one big vec
         let mut ops = Vec::new();
 
         if disas_block_idx == 0 {
-            // callconv means EVERY function has a null placed onto its stack, required for returnFunction and initreturnFunction etx.
             ops.push(OP::MoveImm {
                 src: ImmediateValue::Null,
                 dest: block_ctx.push_stack_variable(),
@@ -691,7 +574,7 @@ pub fn perform_ssa_function(disassembly_function: &DisassemblyFunction) -> Resul
         for (_, opc) in disas_block.container.iter() {
             get_operation(opc, &mut block_ctx, &mut ops);
         }
-        
+
         let terminator = match disas_block.terminator {
             crate::disassembler::DisassemblyTerminator::Jump { target } => {
                 search_deque.push_back((target, block_ctx.get_sp()));
@@ -701,13 +584,11 @@ pub fn perform_ssa_function(disassembly_function: &DisassemblyFunction) -> Resul
                 target_true,
                 target_false,
             } => {
-
                 let ret = SSATerminator::BranchTrue {
                     test: block_ctx.pop_stack_variable_top(),
                     target_true,
                     target_false,
                 };
-
                 search_deque.push_back((target_true, block_ctx.get_sp()));
                 search_deque.push_back((target_false, block_ctx.get_sp()));
                 ret
@@ -723,19 +604,46 @@ pub fn perform_ssa_function(disassembly_function: &DisassemblyFunction) -> Resul
             ops,
             terminator,
         };
-        dbg!(&search_deque);
-        ssa_blocks.insert(disas_block_idx,block);
+        ssa_blocks.insert(disas_block_idx, block);
     }
 
-    // todo unassigned blocks break eager index eval???
+    // due to dead blocks being skipped, the block indices have shifted but the terminators have remained the same.
+    // we therefore need to work out the mappings and adjust these
+    let mut mapper: HashMap<usize, usize> = HashMap::new();
+    for (new_idx, &old_idx) in ssa_blocks.keys().enumerate() {
+        mapper.insert(old_idx, new_idx);
+    }
 
-    assert_eq!(ssa_blocks.len(), disassembly_function.blocks.len());
+    // ... and remap
+    let mut mapped_blocks = Vec::with_capacity(ssa_blocks.len());
+    for (_, mut block) in ssa_blocks.into_iter() {
+        match &mut block.terminator {
+            SSATerminator::Jump { target } => {
+                *target = *mapper
+                    .get(target)
+                    .expect("Jump target block unexpectedly missing from mapped SSA blocks!");
+            }
+            SSATerminator::BranchTrue {
+                target_true,
+                target_false,
+                ..
+            } => {
+                *target_true = *mapper
+                    .get(target_true)
+                    .expect("BranchTrue target_true unexpectedly missing!");
+                *target_false = *mapper
+                    .get(target_false)
+                    .expect("BranchTrue target_false unexpectedly missing!");
+            }
+            SSATerminator::Return { .. } => {}
+        }
+        mapped_blocks.push(block);
+    }
 
     Ok(SSAFunction {
-        blocks: ssa_blocks.into_values().collect(),
+        blocks: mapped_blocks,
     })
 }
-
 
 impl TInstruction for OP {}
 
@@ -750,9 +658,7 @@ impl TBlock<OP> for SSABlock {
 
     fn get_block_terminator(&self) -> GenericTerminator {
         match &self.terminator {
-            SSATerminator::Jump { target } => GenericTerminator::Jump {
-                target: *target,
-            },
+            SSATerminator::Jump { target } => GenericTerminator::Jump { target: *target },
             SSATerminator::BranchTrue {
                 target_true,
                 target_false,
@@ -769,21 +675,16 @@ impl TBlock<OP> for SSABlock {
         None
     }
 
-    fn get_instructions_for_block<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (Option<usize>, &'a OP)>
+    fn get_instructions_for_block<'a>(&'a self) -> impl Iterator<Item = (Option<usize>, &'a OP)>
     where
         OP: 'a,
         OP: TInstruction,
     {
         self.ops.iter().map(|op| (None, op))
     }
-
 }
 
 impl TFunction<SSABlock, OP> for SSAFunction {
-
-
     fn get_blocks_for_function<'a>(&'a self) -> impl Iterator<Item = &'a SSABlock>
     where
         SSABlock: 'a,
@@ -794,10 +695,11 @@ impl TFunction<SSABlock, OP> for SSAFunction {
 }
 
 impl DisplayWithResolver for OP {
-    fn fmt_with_resolver<R: AddressResolver>(&self, f: &mut fmt::Formatter<'_>, resolver: &R) -> fmt::Result {
-        match self {
-            _ => write!(f, "{self:?}")
-            
-        }
+    fn fmt_with_resolver<R: AddressResolver>(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        _resolver: &R,
+    ) -> fmt::Result {
+        write!(f, "{self:?}")
     }
 }

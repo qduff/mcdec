@@ -1,0 +1,14 @@
+[package]
+name = "mcd-tests"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dev-dependencies]
+prgparser = { version = "0.0.0", path = "../../crates/prgparser" }
+mcd = { version = "0.0.0", path = "../../crates/mcd" }
+mcd-traits = { version = "0.0.0", path = "../../crates/mcd-traits" }
+rstest = "0.26.1"
+rayon = "1.8"
+walkdir = "2"

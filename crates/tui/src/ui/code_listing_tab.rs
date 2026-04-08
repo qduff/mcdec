@@ -35,7 +35,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
                 Span::styled(
                     func.get_name()
                         .iter()
-                        .map(|v| display_with_resolver(v, &app.mcd.symbols))
+                        .map(|v| display_with_resolver(v, &app.mcd))
                         .join("/"),
                     Style::default().fg(Color::White).bold(),
                 ),
@@ -76,7 +76,19 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     // ILView
     let selected_function_index = app.function_list_state.selected().unwrap();
-    let function = app.mcd.functions.get_mut(selected_function_index).unwrap();
+    let selected_il = ILType::all()
+        .nth(app.il_list_state.selected().unwrap())
+        .unwrap();
+
+    {
+        let function = app.mcd.functions.get_mut(selected_function_index).unwrap();
+        match selected_il {
+            ILType::Disassembly => function.ensure_disassembly_analyzed(),
+            ILType::SSA => function.ensure_ssa_analyzed(),
+        }
+    }
+
+    let function = app.mcd.functions.get(selected_function_index).unwrap();
 
     let focus_style = if matches!(app.focused_pane, FocusedPane::ILView) {
         Style::default().fg(Color::White)
@@ -84,29 +96,25 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default().fg(Color::DarkGray)
     };
 
-    let selected_il = ILType::all()
-        .nth(app.il_list_state.selected().unwrap())
-        .unwrap();
-
     let func_name = function
         .get_name()
         .iter()
-        .map(|v| display_with_resolver(v, &app.mcd.symbols))
+        .map(|v| display_with_resolver(v, &app.mcd))
         .join("/");
 
     let mut decomp_text = String::new();
     match selected_il {
         ILType::Disassembly => {
-            let _ = function.with_disassembly(|f| {
+            if let Some(f) = function.get_disassembly() {
                 use std::fmt::Write;
-                write!(decomp_text, "{}", render_function(f, &app.mcd.symbols)).unwrap();
-            });
+                write!(decomp_text, "{}", render_function(f, &app.mcd)).unwrap();
+            }
         }
         ILType::SSA => {
-            let _ = function.with_ssa(|f| {
+            if let Some(f) = function.get_ssa() {
                 use std::fmt::Write;
-                write!(decomp_text, "{}", render_function(f, &app.mcd.symbols)).unwrap();
-            });
+                write!(decomp_text, "{}", render_function(f, &app.mcd)).unwrap();
+            }
         }
     }
 
